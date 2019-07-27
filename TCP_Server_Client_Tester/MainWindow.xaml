@@ -80,8 +80,8 @@
 
                         <Label Content="Port:" Grid.Column="0" Grid.Row="0" VerticalAlignment="Bottom"/>
                         <TextBox x:Name="serverPort" Text="233"  Grid.Column="0" Grid.Row="1" Margin="5,0,5,10"/>
-                        <Label Content="IP:" Grid.Column="0" Grid.Row="2" VerticalAlignment="Bottom"/>
-                        <TextBox x:Name="serverIP" Text="192.168.144.1" Grid.Column="0" Grid.Row="3" Margin="5,0,5,10"/>
+                        <Label Content="IP (read only):" Grid.Column="0" Grid.Row="2" VerticalAlignment="Bottom"/>
+                        <TextBox x:Name="serverIP" Text="0.0.0.0" Grid.Column="0" Grid.Row="3" Margin="5,0,5,10" IsEnabled="false"/>
                         <Button x:Name="serverStartButton" Content="Listen" Grid.Column="0" Grid.Row="4" Margin="5,5,5,5" Background="LightGreen" FontWeight="Bold" Click="serverStartButton_Click"/>
                     </Grid>
                 </Grid>
@@ -160,7 +160,7 @@
                         <Label Content="Port:" Grid.Column="0" Grid.Row="0" VerticalAlignment="Bottom"/>
                         <TextBox x:Name="clientPort" Text="233" Grid.Column="0" Grid.Row="1" Margin="5,0,5,10"/>
                         <Label Content="IP:" Grid.Column="0" Grid.Row="2" VerticalAlignment="Bottom"/>
-                        <TextBox x:Name="clientIP" Text="192.168.144.1" Grid.Column="0" Grid.Row="3" Margin="5,0,5,10"/>
+                        <TextBox x:Name="clientIP" Text="0.0.0.0" Grid.Column="0" Grid.Row="3" Margin="5,0,5,10"/>
                         <Button x:Name="clientStartButton" Content="Connect" Grid.Column="0" Grid.Row="4" Margin="5,5,5,5" Background="LightGreen" FontWeight="Bold" Click="clientStartButton_Click"/>
                     </Grid>
                 </Grid>

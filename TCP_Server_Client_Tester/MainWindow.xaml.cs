@@ -39,6 +39,7 @@ namespace TCP_Server_Client_Tester
 
         const int SIZE1K = 1024;    //bytes
         const int TIMEOUT = 2000;   //ms
+        const int MAX_CLIENTS = 5;
 
         static volatile bool serverStartButtonFlag = false;
         static volatile bool clientStartButtonFlag = false;
@@ -57,6 +58,12 @@ namespace TCP_Server_Client_Tester
         public MainWindow()
         {
             InitializeComponent();
+
+            ip = Dns.GetHostEntry(Dns.GetHostName()).AddressList[2].ToString();
+            Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+            {
+                serverIP.Text = ip;
+            }));
         }
 
 
@@ -66,8 +73,9 @@ namespace TCP_Server_Client_Tester
             {
                 bool closeFlag = false;
 
-                IPAddress localAddr = IPAddress.Parse(ip);
-                TcpListener server = new TcpListener(localAddr, port);
+                IPAddress ipAddress = Dns.GetHostEntry(Dns.GetHostName()).AddressList[0];
+                IPEndPoint ipLocalEndPoint = new IPEndPoint(ipAddress, port);
+                TcpListener server = new TcpListener(ipLocalEndPoint);
                 TcpClient client = null;
 
                 byte[] bytesToSend = new byte[SIZE1K];
@@ -83,7 +91,17 @@ namespace TCP_Server_Client_Tester
                             sendingString = "";
                             receivingString = "";
 
-                            server.Start();
+                            try
+                            {
+                                server.Start();
+                            }
+                            catch(SocketException ex)
+                            {
+                                string tempString = "Socket Exception Error-code: ";
+                                tempString = tempString + ex.ToString();
+                                MessageBoxResult errorMessageBox = MessageBox.Show(tempString, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            }
+                            //server.Start();
                             client = server.AcceptTcpClient();
                             client.ReceiveTimeout = TIMEOUT;
                             client.SendTimeout = TIMEOUT;
@@ -152,8 +170,10 @@ namespace TCP_Server_Client_Tester
                     if (client.Connected)
                     {
                         client.Close();
+                        client = null;
                     }
                     server.Stop();
+                    server = null;
                 }
                 catch { }
                 serverState = Tcp.CONNECT;
@@ -253,6 +273,7 @@ namespace TCP_Server_Client_Tester
                     if (client.Connected)
                     {
                         client.Close();
+                        client = null;
                     }
                 }
                 catch { }
@@ -355,7 +376,6 @@ namespace TCP_Server_Client_Tester
                 serverTextboxBig.Text = "";
 
                 serverPort.IsEnabled = false;
-                serverIP.IsEnabled = false;
                 clientTab.IsEnabled = false;
 
                 sendingString = "";
@@ -385,7 +405,6 @@ namespace TCP_Server_Client_Tester
 
                 clientTab.IsEnabled = true;
                 serverPort.IsEnabled = true;
-                serverIP.IsEnabled = true;
             }
         }
 
