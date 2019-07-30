@@ -40,7 +40,7 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <TextBox x:Name="serverSendTextbox1" Grid.Column="0" Grid.Row="0" Margin="5,5,5,5"/>
-                            <Button Content="Send" Grid.Column="1" Grid.Row="0" Margin="5,5,5,0" Height="20" VerticalAlignment="Top" Click="Button_Click"/>
+                            <Button x:Name="serverSendButton1" Content="Send" Grid.Column="1" Grid.Row="0" Margin="5,5,5,0" Height="20" VerticalAlignment="Top" Click="serverSendButton1_Click" IsEnabled="false"/>
                         </Grid>
 
                         <Grid Grid.Column="0" Grid.Row="2">
@@ -52,7 +52,7 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <TextBox x:Name="serverSendTextbox2" Grid.Column="0" Grid.Row="0" Margin="5,5,5,5"/>
-                            <Button Content="Send" Grid.Column="1" Grid.Row="0" Margin="5,5,5,5" Click="Button_Click_1"/>
+                            <Button x:Name="serverSendButton2" Content="Send" Grid.Column="1" Grid.Row="0" Margin="5,5,5,5" Click="serverSendButton2_Click" IsEnabled="false"/>
                         </Grid>
 
                     </Grid>
@@ -80,9 +80,7 @@
 
                         <Label Content="Port:" Grid.Column="0" Grid.Row="0" VerticalAlignment="Bottom"/>
                         <TextBox x:Name="serverPort" Text="233"  Grid.Column="0" Grid.Row="1" Margin="5,0,5,10"/>
-                        <Label Content="IP (read only):" Grid.Column="0" Grid.Row="2" VerticalAlignment="Bottom"/>
-                        <TextBox x:Name="serverIP" Text="0.0.0.0" Grid.Column="0" Grid.Row="3" Margin="5,0,5,10" IsEnabled="false"/>
-                        <Button x:Name="serverStartButton" Content="Listen" Grid.Column="0" Grid.Row="4" Margin="5,5,5,5" Background="LightGreen" FontWeight="Bold" Click="serverStartButton_Click"/>
+                        <Button x:Name="serverStartButton" Content="Listen" Grid.Column="0" Grid.Row="2" Margin="5,5,5,5" Background="LightGreen" FontWeight="Bold" Click="serverStartButton_Click"/>
                     </Grid>
                 </Grid>
             </TabItem>
@@ -119,7 +117,7 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <TextBox x:Name="clientSendTextbox1" Grid.Column="0" Grid.Row="0" Margin="5,5,5,5"/>
-                            <Button Content="Send" Grid.Column="1" Grid.Row="0" Margin="5,5,5,5" Click="Button_Click_2"/>
+                            <Button x:Name="clientSendButton1" Content="Send" Grid.Column="1" Grid.Row="0" Margin="5,5,5,5" Click="clientSendButton1_Click" IsEnabled="false"/>
                         </Grid>
 
                         <Grid Grid.Column="0" Grid.Row="2">
@@ -131,7 +129,7 @@
                                 <RowDefinition Height="*" />
                             </Grid.RowDefinitions>
                             <TextBox x:Name="clientSendTextbox2" Grid.Column="0" Grid.Row="0" Margin="5,5,5,5"/>
-                            <Button Content="Send" Grid.Column="1" Grid.Row="0" Margin="5,5,5,5" Click="Button_Click_3"/>
+                            <Button x:Name="clientSendButton2" Content="Send" Grid.Column="1" Grid.Row="0" Margin="5,5,5,5" Click="clientSendButton2_Click" IsEnabled="false"/>
                         </Grid>
 
                     </Grid>
@@ -160,7 +158,7 @@
                         <Label Content="Port:" Grid.Column="0" Grid.Row="0" VerticalAlignment="Bottom"/>
                         <TextBox x:Name="clientPort" Text="233" Grid.Column="0" Grid.Row="1" Margin="5,0,5,10"/>
                         <Label Content="IP:" Grid.Column="0" Grid.Row="2" VerticalAlignment="Bottom"/>
-                        <TextBox x:Name="clientIP" Text="0.0.0.0" Grid.Column="0" Grid.Row="3" Margin="5,0,5,10"/>
+                        <TextBox x:Name="clientIP" Text="192.168.144.1" Grid.Column="0" Grid.Row="3" Margin="5,0,5,10"/>
                         <Button x:Name="clientStartButton" Content="Connect" Grid.Column="0" Grid.Row="4" Margin="5,5,5,5" Background="LightGreen" FontWeight="Bold" Click="clientStartButton_Click"/>
                     </Grid>
                 </Grid>
