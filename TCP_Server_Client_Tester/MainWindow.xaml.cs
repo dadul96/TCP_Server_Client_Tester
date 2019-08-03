@@ -17,6 +17,7 @@ using System.Windows.Threading;
 using System.Threading;
 using System.Net;
 using System.Net.Sockets;
+using TcpConnection_Lib;
 
 namespace TCP_Server_Client_Tester
 {
@@ -25,9 +26,10 @@ namespace TCP_Server_Client_Tester
     /// </summary>
     public partial class MainWindow : Window
     {
+        static readonly TcpConnection connection = new TcpConnection();
+
         enum Tcp
         {
-            NONE,
             LISTEN,
             CONNECT,
             IDLE,
@@ -36,25 +38,19 @@ namespace TCP_Server_Client_Tester
             CLOSE
         }
 
-        static volatile Tcp serverState = Tcp.NONE;
-        static volatile Tcp clientState = Tcp.NONE;
-
-        const int SIZE1K = 1024;    //bytes
-        const int TIMEOUT = 1000;   //ms
+        static Tcp serverState = Tcp.LISTEN;
+        static Tcp clientState = Tcp.CONNECT;
 
         static volatile bool serverStartButtonFlag = false;
         static volatile bool clientStartButtonFlag = false;
         static volatile bool sendingStringFilledFlag = false;
-        static volatile bool sendingDoneFlag = false;
-        static volatile bool receivingDoneFlag = false;
-        static volatile bool TcpConnectedFlag = false;
+        static volatile bool tcpConnectedFlag = false;
 
         static volatile string sendingString = "";
         static volatile string receivingString = "";
 
         static volatile int port = 0;
         static volatile string ip = "";
-
 
 
         public MainWindow()
@@ -69,19 +65,13 @@ namespace TCP_Server_Client_Tester
             {
                 bool closeFlag = false;
                 sendingStringFilledFlag = false;
-                sendingDoneFlag = false;
                 sendingString = "";
                 receivingString = "";
 
-                IPEndPoint ipLocalEndPoint = new IPEndPoint(IPAddress.Any, port);
-                TcpListener server = new TcpListener(ipLocalEndPoint);
-
-                TcpClient client = null;
-
-                byte[] bytesToSend = new byte[SIZE1K];
-                byte[] bytesToRead = new byte[SIZE1K];
-
-                NetworkStream TcpStream = null;
+                Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                {
+                    serverTextboxBig.Text = "";
+                }));
 
                 serverState = Tcp.LISTEN;
 
@@ -95,38 +85,38 @@ namespace TCP_Server_Client_Tester
                     switch (serverState)
                     {
                         case Tcp.LISTEN:
-                            server.Start();
-                            serverState = Tcp.CONNECT;
+                            if (connection.Listen(port))
+                            {
+                                serverState = Tcp.CONNECT;
+                            }
+                            else
+                            {
+                                serverState = Tcp.CLOSE;
+                            }
                             break;
 
                         case Tcp.CONNECT:
-                            if (server.Pending()) 
+                            if (connection.TcpIsConnected == true)
                             {
-                                client = server.AcceptTcpClient();
+                                Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                                {
+                                    serverTextboxBig.AppendText("Connected to " + connection.RemoteEndpointAddress + Environment.NewLine);
+                                    serverTextboxBig.ScrollToEnd();
+                                }));
 
-                                server.Stop();
-
-                                client.ReceiveTimeout = TIMEOUT;
-                                client.SendTimeout = TIMEOUT;
-                                client.SendBufferSize = SIZE1K;
-                                client.ReceiveBufferSize = SIZE1K;
-
-                                TcpStream = client.GetStream();
-
+                                tcpConnectedFlag = true;
                                 serverState = Tcp.IDLE;
                             }
                             break;
 
                         case Tcp.IDLE:
-                            if (client.Connected == true)
+                            if (connection.TcpIsConnected == true)
                             {
-                                TcpConnectedFlag = true;
-
                                 if (sendingStringFilledFlag)
                                 {
                                     serverState = Tcp.SENDING;
                                 }
-                                else if (TcpStream.DataAvailable)
+                                else
                                 {
                                     serverState = Tcp.RECEIVING;
                                 }
@@ -135,32 +125,57 @@ namespace TCP_Server_Client_Tester
                             {
                                 serverState = Tcp.CLOSE;
                             }
+
                             break;
 
                         case Tcp.SENDING:
-                            try
+                            if (connection.TcpIsConnected == true)
                             {
-                                bytesToSend = ASCIIEncoding.ASCII.GetBytes(sendingString);
-                                TcpStream.Write(bytesToSend, 0, bytesToSend.Length);
-                                sendingStringFilledFlag = false;
-                                sendingDoneFlag = true;
-                                serverState = Tcp.IDLE;
+                                if (connection.Send(sendingString))
+                                {
+                                    Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                                    {
+                                        serverTextboxBig.AppendText("Sending: " + sendingString + Environment.NewLine);
+                                        serverTextboxBig.ScrollToEnd();
+                                    }));
+
+                                    sendingString = "";
+                                    sendingStringFilledFlag = false;
+                                    serverState = Tcp.IDLE;
+                                }
+                                else
+                                {
+                                    serverState = Tcp.CLOSE;
+                                }
                             }
-                            catch
+                            else
                             {
                                 serverState = Tcp.CLOSE;
                             }
                             break;
 
                         case Tcp.RECEIVING:
-                            try
+                            if (connection.TcpIsConnected == true)
                             {
-                                int bytesRead = TcpStream.Read(bytesToRead, 0, client.ReceiveBufferSize);
-                                receivingString = Encoding.ASCII.GetString(bytesToRead, 0, bytesRead);
-                                receivingDoneFlag = true;
+                                try
+                                {
+                                    receivingString = connection.GetReceivedString();
+
+                                    if (receivingString != "")
+                                    {
+                                        Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                                        {
+                                            serverTextboxBig.AppendText("Receiving: " + receivingString + Environment.NewLine);
+                                            serverTextboxBig.ScrollToEnd();
+                                        }));
+
+                                        receivingString = "";
+                                    }
+                                }
+                                catch { }
                                 serverState = Tcp.IDLE;
                             }
-                            catch
+                            else
                             {
                                 serverState = Tcp.CLOSE;
                             }
@@ -172,36 +187,18 @@ namespace TCP_Server_Client_Tester
                                 sendingString = "";
                                 receivingString = "";
                                 sendingStringFilledFlag = false;
-                                sendingDoneFlag = false;
-                                receivingDoneFlag = false;
-                                TcpConnectedFlag = false;
+                                tcpConnectedFlag = false;
 
-                                try
+                                Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
                                 {
-                                    TcpStream.Close();
-                                    TcpStream.Dispose();
+                                    serverTextboxBig.AppendText("Disconnected..." + Environment.NewLine);
+                                    serverTextboxBig.ScrollToEnd();
+                                }));
 
-                                }
-                                catch { }
-                                try
-                                {
-                                    client.Close();
-                                    client.Client.Dispose();
-                                }
-                                catch { }
-                                try
-                                {
-                                    server.Stop();
-                                    server.Server.Close();
-                                    server = null;
-                                }
-                                catch { }
+                                connection.Dispose();
                             }
                             catch { }
                             closeFlag = true;
-                            break;
-
-                        case Tcp.NONE:
                             break;
 
                         default:
@@ -212,27 +209,22 @@ namespace TCP_Server_Client_Tester
             }
             catch
             {
-                MessageBoxResult errorMessageBox = MessageBox.Show("Server loop error. Please restart the Program!", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Server loop error. Please restart the Program!", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-
 
         void TcpClientLoop()
         {
             try
             {
                 bool closeFlag = false;
+                sendingString = "";
+                receivingString = "";
 
-                TcpClient client = new TcpClient();
-                client.ReceiveTimeout = TIMEOUT;
-                client.SendTimeout = TIMEOUT;
-                client.SendBufferSize = SIZE1K;
-                client.ReceiveBufferSize = SIZE1K;
-
-                byte[] bytesToSend = new byte[client.SendBufferSize];
-                byte[] bytesToRead = new byte[client.ReceiveBufferSize];
-
-                NetworkStream TcpStream = null;
+                Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                {
+                    clientTextboxBig.Text = "";
+                }));
 
                 clientState = Tcp.CONNECT;
 
@@ -246,30 +238,27 @@ namespace TCP_Server_Client_Tester
                     switch (clientState)
                     {
                         case Tcp.CONNECT:
-                            sendingString = "";
-                            receivingString = "";
-
-                            try
+                            if (connection.Connect(ip, port))
                             {
-                                client.Connect(ip, port);
-                                TcpStream = client.GetStream();
+                                Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                                {
+                                    clientTextboxBig.AppendText("Connected" + Environment.NewLine);
+                                    clientTextboxBig.ScrollToEnd();
+                                }));
 
+                                tcpConnectedFlag = true;
                                 clientState = Tcp.IDLE;
                             }
-                            catch { }
-
                             break;
 
                         case Tcp.IDLE:
-                            if (client.Connected == true)
+                            if (connection.TcpIsConnected == true)
                             {
-                                TcpConnectedFlag = true;
-
                                 if (sendingStringFilledFlag)
                                 {
                                     clientState = Tcp.SENDING;
                                 }
-                                else if (TcpStream.DataAvailable)
+                                else
                                 {
                                     clientState = Tcp.RECEIVING;
                                 }
@@ -281,30 +270,53 @@ namespace TCP_Server_Client_Tester
                             break;
 
                         case Tcp.SENDING:
-                            try
+                            if (connection.TcpIsConnected == true)
                             {
-                                bytesToSend = ASCIIEncoding.ASCII.GetBytes(sendingString);
-                                TcpStream.Write(bytesToSend, 0, bytesToSend.Length);
-                                sendingStringFilledFlag = false;
-                                sendingDoneFlag = true;
-                                clientState = Tcp.IDLE;
+                                if (connection.Send(sendingString))
+                                {
+                                    Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                                    {
+                                        clientTextboxBig.AppendText("Sending: " + sendingString + Environment.NewLine);
+                                        clientTextboxBig.ScrollToEnd();
+                                    }));
+
+                                    sendingString = "";
+                                    sendingStringFilledFlag = false;
+                                    clientState = Tcp.IDLE;
+                                }
+                                else
+                                {
+                                    clientState = Tcp.CLOSE;
+                                }
                             }
-                            catch
+                            else
                             {
                                 clientState = Tcp.CLOSE;
                             }
-
                             break;
 
                         case Tcp.RECEIVING:
-                            try
+                            if (connection.TcpIsConnected == true)
                             {
-                                int bytesRead = TcpStream.Read(bytesToRead, 0, client.ReceiveBufferSize);
-                                receivingString = Encoding.ASCII.GetString(bytesToRead, 0, bytesRead);
-                                receivingDoneFlag = true;
+                                try
+                                {
+                                    receivingString = connection.GetReceivedString();
+
+                                    if (receivingString != "")
+                                    {
+                                        Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                                        {
+                                            clientTextboxBig.AppendText("Receiving: " + receivingString + Environment.NewLine);
+                                            clientTextboxBig.ScrollToEnd();
+                                        }));
+
+                                        receivingString = "";
+                                    }
+                                }
+                                catch { }
                                 clientState = Tcp.IDLE;
                             }
-                            catch
+                            else
                             {
                                 clientState = Tcp.CLOSE;
                             }
@@ -316,28 +328,18 @@ namespace TCP_Server_Client_Tester
                                 sendingString = "";
                                 receivingString = "";
                                 sendingStringFilledFlag = false;
-                                sendingDoneFlag = false;
-                                receivingDoneFlag = false;
-                                TcpConnectedFlag = false;
+                                tcpConnectedFlag = false;
 
-                                try
+                                Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
                                 {
-                                    client.Close();
-                                    client.Client.Dispose();
-                                }
-                                catch { }
-                                try
-                                {
-                                    TcpStream.Close();
-                                    TcpStream.Dispose();
-                                }
-                                catch { }
+                                    serverTextboxBig.AppendText("Disconnected..." + Environment.NewLine);
+                                    serverTextboxBig.ScrollToEnd();
+                                }));
+
+                                connection.Dispose();
                             }
                             catch { }
                             closeFlag = true;
-                            break;
-
-                        case Tcp.NONE:
                             break;
 
                         default:
@@ -348,152 +350,19 @@ namespace TCP_Server_Client_Tester
             }
             catch
             {
-                MessageBoxResult errorMessageBox = MessageBox.Show("Client loop error. Please restart the Program!", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("Client loop error. Please restart the Program!", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
-
-
-        void PrintingServerLoop()
-        {
-            try
-            {
-                bool oldTcpConnectedState = false;
-
-                Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
-                {
-                    serverTextboxBig.Text = "";
-                }));
-
-                while (serverStartButtonFlag)
-                {
-                    if (sendingDoneFlag)
-                    {
-                        Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
-                        {
-                            serverTextboxBig.AppendText("Sending: " + sendingString + Environment.NewLine);
-                            serverTextboxBig.ScrollToEnd();
-                        }));
-                        sendingString = "";
-                        sendingDoneFlag = false;
-                    }
-
-                    if (receivingDoneFlag)
-                    {
-                        Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
-                        {
-                            serverTextboxBig.AppendText("Receiving: " + receivingString + Environment.NewLine);
-                            serverTextboxBig.ScrollToEnd();
-                        }));
-                        receivingString = "";
-                        receivingDoneFlag = false;
-                    }
-
-                    if (oldTcpConnectedState != TcpConnectedFlag)
-                    {
-                        oldTcpConnectedState = TcpConnectedFlag;
-
-                        if (TcpConnectedFlag) 
-                        {
-                            Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
-                            {
-                                serverTextboxBig.AppendText("### CONNECTED ###" + Environment.NewLine);
-                                serverTextboxBig.ScrollToEnd();
-                            }));
-                        }
-                        else
-                        {
-                            Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
-                            {
-                                serverTextboxBig.AppendText("### DISCONNECTED ###" + Environment.NewLine);
-                                serverTextboxBig.ScrollToEnd();
-                            }));
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                MessageBoxResult errorMessageBox = MessageBox.Show("Server printing loop error. Please restart the Program!", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
-
-        void PrintingClientLoop()
-        {
-            try
-            {
-                bool oldTcpConnectedState = false;
-
-                Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
-                {
-                    clientTextboxBig.Text = "";
-                }));
-
-                while (clientStartButtonFlag)
-                {
-                    if (sendingDoneFlag)
-                    {
-                        Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
-                        {
-                            clientTextboxBig.AppendText("Sending: " + sendingString + Environment.NewLine);
-                            clientTextboxBig.ScrollToEnd();
-                        }));
-                        sendingString = "";
-                        sendingDoneFlag = false;
-                    }
-
-                    if (receivingDoneFlag)
-                    {
-                        Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
-                        {
-                            clientTextboxBig.AppendText("Receiving: " + receivingString + Environment.NewLine);
-                            clientTextboxBig.ScrollToEnd();
-                        }));
-                        receivingString = "";
-                        receivingDoneFlag = false;
-                    }
-
-                    if (oldTcpConnectedState != TcpConnectedFlag)
-                    {
-                        oldTcpConnectedState = TcpConnectedFlag;
-
-                        if (TcpConnectedFlag)
-                        {
-                            Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
-                            {
-                                clientTextboxBig.AppendText("### CONNECTED ###" + Environment.NewLine);
-                                clientTextboxBig.ScrollToEnd();
-                            }));
-                        }
-                        else
-                        {
-                            Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
-                            {
-                                clientTextboxBig.AppendText("### DISCONNECTED ###" + Environment.NewLine);
-                                clientTextboxBig.ScrollToEnd();
-                            }));
-                        }
-                    }
-                }
-            }
-            catch
-            {
-                MessageBoxResult errorMessageBox = MessageBox.Show("Client printing loop error. Please restart the Program!", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-
 
 
         private void serverStartButton_Click(object sender, RoutedEventArgs e)
         {
             serverStartButtonFlag = !serverStartButtonFlag;
 
-            Thread TcpServerThread = new Thread(TcpServerLoop);
-            TcpServerThread.IsBackground = true;
-
-            Thread PrintingServerThread = new Thread(PrintingServerLoop);
-            PrintingServerThread.IsBackground = true;
-
+            Thread TcpServerThread = new Thread(TcpServerLoop)
+            {
+                IsBackground = true
+            };
 
             if (serverStartButtonFlag)
             {
@@ -507,7 +376,6 @@ namespace TCP_Server_Client_Tester
                 serverSendButton1.IsEnabled = true;
                 serverSendButton2.IsEnabled = true;
 
-                PrintingServerThread.Start();
                 TcpServerThread.Start();
             }
             else
@@ -518,10 +386,6 @@ namespace TCP_Server_Client_Tester
                 if (TcpServerThread.IsAlive)
                 {
                     TcpServerThread.Join();
-                }
-                if (PrintingServerThread.IsAlive)
-                {
-                    PrintingServerThread.Join();
                 }
 
                 clientTab.IsEnabled = true;
@@ -535,12 +399,10 @@ namespace TCP_Server_Client_Tester
         {
             clientStartButtonFlag = !clientStartButtonFlag;
 
-            Thread TcpClientThread = new Thread(TcpClientLoop);
-            TcpClientThread.IsBackground = true;
-
-            Thread PrintingClientThread = new Thread(PrintingClientLoop);
-            PrintingClientThread.IsBackground = true;
-
+            Thread TcpClientThread = new Thread(TcpClientLoop)
+            {
+                IsBackground = true
+            };
 
             if (clientStartButtonFlag)
             {
@@ -556,7 +418,6 @@ namespace TCP_Server_Client_Tester
                 clientSendButton1.IsEnabled = true;
                 clientSendButton2.IsEnabled = true;
 
-                PrintingClientThread.Start();
                 TcpClientThread.Start();
             }
             else
@@ -567,10 +428,6 @@ namespace TCP_Server_Client_Tester
                 if (TcpClientThread.IsAlive)
                 {
                     TcpClientThread.Join();
-                }
-                if (PrintingClientThread.IsAlive)
-                {
-                    PrintingClientThread.Join();
                 }
 
                 serverTab.IsEnabled = true;
@@ -583,7 +440,7 @@ namespace TCP_Server_Client_Tester
 
         private void serverSendButton1_Click(object sender, RoutedEventArgs e)
         {
-            if (!sendingDoneFlag && !sendingStringFilledFlag && TcpConnectedFlag)
+            if (!sendingStringFilledFlag && tcpConnectedFlag)
             {
                 sendingString = serverSendTextbox1.Text;
                 sendingStringFilledFlag = true;
@@ -592,7 +449,7 @@ namespace TCP_Server_Client_Tester
 
         private void serverSendButton2_Click(object sender, RoutedEventArgs e)
         {
-            if (!sendingDoneFlag && !sendingStringFilledFlag && TcpConnectedFlag)
+            if (!sendingStringFilledFlag && tcpConnectedFlag)
             {
                 sendingString = serverSendTextbox2.Text;
                 sendingStringFilledFlag = true;
@@ -601,7 +458,7 @@ namespace TCP_Server_Client_Tester
 
         private void clientSendButton1_Click(object sender, RoutedEventArgs e)
         {
-            if (!sendingDoneFlag && !sendingStringFilledFlag && TcpConnectedFlag)
+            if (!sendingStringFilledFlag && tcpConnectedFlag)
             {
                 sendingString = clientSendTextbox1.Text;
                 sendingStringFilledFlag = true;
@@ -610,7 +467,7 @@ namespace TCP_Server_Client_Tester
 
         private void clientSendButton2_Click(object sender, RoutedEventArgs e)
         {
-            if (!sendingDoneFlag && !sendingStringFilledFlag && TcpConnectedFlag)
+            if (!sendingStringFilledFlag && tcpConnectedFlag)
             {
                 sendingString = clientSendTextbox2.Text;
                 sendingStringFilledFlag = true;
