@@ -1,5 +1,6 @@
 # TCP_Server_Client_Tester
 This windows program can be used for testing TCP server and clients. It also works as an example code for my [TcpConnection_Lib](https://github.com/dadul96/TcpConnection_Lib).
+![](screenshot.gif)
 
 ### Installation
 There is no installation required. Just download the **TCP_Server_Client_Tester.exe** and the **TcpConnection_Lib.dll** (from [Releases](https://github.com/dadul96/TCP_Server_Client_Tester/releases)) and double-click the exe.
