@@ -1,5 +1,5 @@
 # TCP_Server_Client_Tester
-This windows program can be used for testing TCP server and clients. It also works as an example code for my [TcpConnection_Lib](https://github.com/dadul96/TcpConnection_Lib).
+This windows program can be used for testing TCP servers and clients. It also works as an example project for my [TcpConnection_Lib](https://github.com/dadul96/TcpConnection_Lib).
 
 ![](screenshot.gif)
 
