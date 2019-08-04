@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:TCP_Server_Client_Tester"
         mc:Ignorable="d"
+        WindowStartupLocation="CenterScreen"
         Title="TCP Server Client Tester" Height="480" Width="640">
     <Grid>
         <TabControl>
