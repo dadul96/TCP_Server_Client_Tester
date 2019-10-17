@@ -219,6 +219,7 @@ namespace TCP_Server_Client_Tester
                             serverState = Tcp.CLOSE;
                             break;
                     }
+                    Thread.Sleep(1); //for decreasing the CPU usage
                 }
             }
             catch (Exception Ex)
@@ -416,6 +417,7 @@ namespace TCP_Server_Client_Tester
                             clientState = Tcp.CLOSE;
                             break;
                     }
+                    Thread.Sleep(1); //for decreasing the CPU usage
                 }
             }
             catch (Exception Ex)
