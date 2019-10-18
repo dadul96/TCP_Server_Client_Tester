@@ -1,4 +1,7 @@
-﻿using System;
+﻿//#################
+//version: 2.0.0
+//#################
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,7 +20,7 @@ using System.Windows.Threading;
 using System.Threading;
 using System.Net;
 using System.Net.Sockets;
-using TcpConnection_Lib;
+using TcpConnection_Lib; //lib-version 2.0.0 used
 
 namespace TCP_Server_Client_Tester
 {
@@ -26,15 +29,19 @@ namespace TCP_Server_Client_Tester
     /// </summary>
     public partial class MainWindow : Window
     {
-        static readonly TcpConnection connection = new TcpConnection();
+        static readonly TcpConnection serverConnection = new TcpConnection();
+        static readonly TcpConnection clientConnection = new TcpConnection();
 
         enum Tcp
         {
             LISTEN,
+            INITIAL_CONNECT,
             CONNECT,
             IDLE,
             SENDING,
             RECEIVING,
+            DISCONNECT,
+            RECONNECT,
             CLOSE
         }
 
@@ -85,32 +92,44 @@ namespace TCP_Server_Client_Tester
                     switch (serverState)
                     {
                         case Tcp.LISTEN:
-                            if (connection.Listen(port))
+                            Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
                             {
-                                serverState = Tcp.CONNECT;
-                            }
-                            else
-                            {
-                                serverState = Tcp.CLOSE;
-                            }
-                            break;
+                                serverStartButton.IsEnabled = false;
+                                serverSendButton1.IsEnabled = false;
+                                serverSendButton2.IsEnabled = false;
+                                serverTextboxBig.AppendText("Waiting for a client..." + Environment.NewLine);
+                                serverTextboxBig.ScrollToEnd();
+                            }));
 
-                        case Tcp.CONNECT:
-                            if (connection.TcpIsConnected == true)
+                            if (serverConnection.TryListen(port, out string RemoteEndpointAddress))
                             {
                                 Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
                                 {
-                                    serverTextboxBig.AppendText("Connected to " + connection.RemoteEndpointAddress + Environment.NewLine);
+                                    serverStartButton.IsEnabled = true;
+                                    serverSendButton1.IsEnabled = true;
+                                    serverSendButton2.IsEnabled = true;
+                                    serverTextboxBig.AppendText("Connected to " + RemoteEndpointAddress + Environment.NewLine);
                                     serverTextboxBig.ScrollToEnd();
                                 }));
 
-                                tcpConnectedFlag = true;
-                                serverState = Tcp.IDLE;
+                                if (serverConnection.TryReadingData())
+                                {
+                                    tcpConnectedFlag = true;
+                                    serverState = Tcp.IDLE;
+                                }
+                                else
+                                {
+                                    serverState = Tcp.DISCONNECT;
+                                }
+                            }
+                            else
+                            {
+                                serverState = Tcp.DISCONNECT;
                             }
                             break;
 
                         case Tcp.IDLE:
-                            if (connection.TcpIsConnected == true)
+                            if (serverConnection.TcpIsConnected == true)
                             {
                                 if (sendingStringFilledFlag)
                                 {
@@ -123,81 +142,79 @@ namespace TCP_Server_Client_Tester
                             }
                             else
                             {
-                                serverState = Tcp.CLOSE;
+                                serverState = Tcp.DISCONNECT;
                             }
 
                             break;
 
                         case Tcp.SENDING:
-                            if (connection.TcpIsConnected == true)
+                            if (serverConnection.TrySend(sendingString))
                             {
-                                if (connection.Send(sendingString))
+                                Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
                                 {
-                                    Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
-                                    {
-                                        serverTextboxBig.AppendText("Sending: " + sendingString + Environment.NewLine);
-                                        serverTextboxBig.ScrollToEnd();
-                                    }));
+                                    serverTextboxBig.AppendText("Sending: " + sendingString + Environment.NewLine);
+                                    serverTextboxBig.ScrollToEnd();
+                                }));
 
-                                    sendingString = "";
-                                    sendingStringFilledFlag = false;
-                                    serverState = Tcp.IDLE;
-                                }
-                                else
-                                {
-                                    serverState = Tcp.CLOSE;
-                                }
-                            }
-                            else
-                            {
-                                serverState = Tcp.CLOSE;
-                            }
-                            break;
-
-                        case Tcp.RECEIVING:
-                            if (connection.TcpIsConnected == true)
-                            {
-                                try
-                                {
-                                    receivingString = connection.GetReceivedString();
-
-                                    if (receivingString != "")
-                                    {
-                                        Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
-                                        {
-                                            serverTextboxBig.AppendText("Receiving: " + receivingString + Environment.NewLine);
-                                            serverTextboxBig.ScrollToEnd();
-                                        }));
-
-                                        receivingString = "";
-                                    }
-                                }
-                                catch { }
+                                sendingString = "";
+                                sendingStringFilledFlag = false;
                                 serverState = Tcp.IDLE;
                             }
                             else
                             {
-                                serverState = Tcp.CLOSE;
+                                serverState = Tcp.DISCONNECT;
                             }
                             break;
 
-                        case Tcp.CLOSE:
-                            try
-                            {
-                                sendingString = "";
-                                receivingString = "";
-                                sendingStringFilledFlag = false;
-                                tcpConnectedFlag = false;
+                        case Tcp.RECEIVING:
+                            receivingString = serverConnection.GetReceivedString();
 
+                            if (receivingString != null)
+                            {
                                 Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
                                 {
-                                    serverTextboxBig.AppendText("Disconnected..." + Environment.NewLine);
+                                    serverTextboxBig.AppendText("Receiving: " + receivingString + Environment.NewLine);
                                     serverTextboxBig.ScrollToEnd();
                                 }));
 
-                                connection.Dispose();
+                                receivingString = null;
                             }
-                            catch { }
+                            serverState = Tcp.IDLE;
+                            break;
+
+                        case Tcp.DISCONNECT:
+                            sendingString = "";
+                            receivingString = "";
+                            sendingStringFilledFlag = false;
+                            tcpConnectedFlag = false;
+
+                            Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                            {
+                                serverStartButton.IsEnabled = false;
+                                serverSendButton1.IsEnabled = false;
+                                serverSendButton2.IsEnabled = false;
+                                serverTextboxBig.AppendText("Problem occurred! Reconnecting..." + Environment.NewLine);
+                                serverTextboxBig.ScrollToEnd();
+                            }));
+
+                            serverConnection.Disconnect();
+
+                            serverState = Tcp.LISTEN;
+                            break;
+
+                        case Tcp.CLOSE:
+                            sendingString = "";
+                            receivingString = "";
+                            sendingStringFilledFlag = false;
+                            tcpConnectedFlag = false;
+
+                            Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                            {
+                                serverTextboxBig.AppendText("Disconnected..." + Environment.NewLine);
+                                serverTextboxBig.ScrollToEnd();
+                            }));
+
+                            serverConnection.Dispose();
                             closeFlag = true;
                             break;
 
@@ -205,11 +222,12 @@ namespace TCP_Server_Client_Tester
                             serverState = Tcp.CLOSE;
                             break;
                     }
+                    Thread.Sleep(1); //for decreasing the CPU usage
                 }
             }
-            catch
+            catch (Exception Ex)
             {
-                MessageBox.Show("Server loop error. Please restart the Program!", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("PLEASE RESTART! TcpServerLoop-thread error: \n\n" + Ex, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -226,7 +244,7 @@ namespace TCP_Server_Client_Tester
                     clientTextboxBig.Text = "";
                 }));
 
-                clientState = Tcp.CONNECT;
+                clientState = Tcp.INITIAL_CONNECT;
 
                 while (!closeFlag)
                 {
@@ -237,22 +255,73 @@ namespace TCP_Server_Client_Tester
 
                     switch (clientState)
                     {
-                        case Tcp.CONNECT:
-                            if (connection.Connect(ip, port))
+                        case Tcp.INITIAL_CONNECT:
+                            Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                            {
+                                clientStartButton.IsEnabled = false;
+                                clientSendButton1.IsEnabled = false;
+                                clientSendButton2.IsEnabled = false;
+                                clientTextboxBig.AppendText("Trying to connect..." + Environment.NewLine);
+                                clientTextboxBig.ScrollToEnd();
+                            }));
+
+                            if (clientConnection.TryConnect(ip, port))
                             {
                                 Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
                                 {
+                                    clientStartButton.IsEnabled = true;
+                                    clientSendButton1.IsEnabled = true;
+                                    clientSendButton2.IsEnabled = true;
                                     clientTextboxBig.AppendText("Connected" + Environment.NewLine);
                                     clientTextboxBig.ScrollToEnd();
                                 }));
 
-                                tcpConnectedFlag = true;
-                                clientState = Tcp.IDLE;
+                                if (clientConnection.TryReadingData())
+                                {
+                                    tcpConnectedFlag = true;
+                                    clientState = Tcp.IDLE;
+                                }
+                                else
+                                {
+                                    clientState = Tcp.RECONNECT;
+                                }
+                            }
+                            else
+                            {
+                                clientState = Tcp.RECONNECT;
+                            }
+                            break;
+
+                        case Tcp.CONNECT:
+                            if (clientConnection.TryConnect(ip, port))
+                            {
+                                if (clientConnection.TryReadingData())
+                                {
+                                    Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                                    {
+                                        clientStartButton.IsEnabled = true;
+                                        clientSendButton1.IsEnabled = true;
+                                        clientSendButton2.IsEnabled = true;
+                                        clientTextboxBig.AppendText("Connected" + Environment.NewLine);
+                                        clientTextboxBig.ScrollToEnd();
+                                    }));
+
+                                    tcpConnectedFlag = true;
+                                    clientState = Tcp.IDLE;
+                                }
+                                else
+                                {
+                                    clientState = Tcp.DISCONNECT;
+                                }
+                            }
+                            else
+                            {
+                                clientState = Tcp.DISCONNECT;
                             }
                             break;
 
                         case Tcp.IDLE:
-                            if (connection.TcpIsConnected == true)
+                            if (clientConnection.TcpIsConnected == true)
                             {
                                 if (sendingStringFilledFlag)
                                 {
@@ -265,80 +334,85 @@ namespace TCP_Server_Client_Tester
                             }
                             else
                             {
-                                clientState = Tcp.CLOSE;
+                                clientState = Tcp.RECONNECT;
                             }
+
                             break;
 
                         case Tcp.SENDING:
-                            if (connection.TcpIsConnected == true)
+                            if (clientConnection.TrySend(sendingString))
                             {
-                                if (connection.Send(sendingString))
+                                Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
                                 {
-                                    Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
-                                    {
-                                        clientTextboxBig.AppendText("Sending: " + sendingString + Environment.NewLine);
-                                        clientTextboxBig.ScrollToEnd();
-                                    }));
+                                    clientTextboxBig.AppendText("Sending: " + sendingString + Environment.NewLine);
+                                    clientTextboxBig.ScrollToEnd();
+                                }));
 
-                                    sendingString = "";
-                                    sendingStringFilledFlag = false;
-                                    clientState = Tcp.IDLE;
-                                }
-                                else
-                                {
-                                    clientState = Tcp.CLOSE;
-                                }
-                            }
-                            else
-                            {
-                                clientState = Tcp.CLOSE;
-                            }
-                            break;
-
-                        case Tcp.RECEIVING:
-                            if (connection.TcpIsConnected == true)
-                            {
-                                try
-                                {
-                                    receivingString = connection.GetReceivedString();
-
-                                    if (receivingString != "")
-                                    {
-                                        Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
-                                        {
-                                            clientTextboxBig.AppendText("Receiving: " + receivingString + Environment.NewLine);
-                                            clientTextboxBig.ScrollToEnd();
-                                        }));
-
-                                        receivingString = "";
-                                    }
-                                }
-                                catch { }
+                                sendingString = "";
+                                sendingStringFilledFlag = false;
                                 clientState = Tcp.IDLE;
                             }
                             else
                             {
-                                clientState = Tcp.CLOSE;
+                                clientState = Tcp.RECONNECT;
                             }
                             break;
 
-                        case Tcp.CLOSE:
-                            try
-                            {
-                                sendingString = "";
-                                receivingString = "";
-                                sendingStringFilledFlag = false;
-                                tcpConnectedFlag = false;
+                        case Tcp.RECEIVING:
+                            receivingString = clientConnection.GetReceivedString();
 
+                            if (receivingString != null)
+                            {
                                 Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
                                 {
-                                    serverTextboxBig.AppendText("Disconnected..." + Environment.NewLine);
-                                    serverTextboxBig.ScrollToEnd();
+                                    clientTextboxBig.AppendText("Receiving: " + receivingString + Environment.NewLine);
+                                    clientTextboxBig.ScrollToEnd();
                                 }));
 
-                                connection.Dispose();
+                                receivingString = null;
                             }
-                            catch { }
+                            clientState = Tcp.IDLE;
+                            break;
+
+                        case Tcp.RECONNECT:
+                            sendingString = "";
+                            receivingString = "";
+                            sendingStringFilledFlag = false;
+                            tcpConnectedFlag = false;
+
+                            Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                            {
+                                clientStartButton.IsEnabled = false;
+                                clientSendButton1.IsEnabled = false;
+                                clientSendButton2.IsEnabled = false;
+                                clientTextboxBig.AppendText("Problem occurred! Reconnecting..." + Environment.NewLine);
+                                clientTextboxBig.ScrollToEnd();
+                            }));
+
+                            clientConnection.Disconnect();
+
+                            clientState = Tcp.CONNECT;
+                            break;
+
+                        case Tcp.DISCONNECT:
+                            clientConnection.Disconnect();
+
+                            clientState = Tcp.CONNECT;
+                            break;
+
+                        case Tcp.CLOSE:
+                            sendingString = "";
+                            receivingString = "";
+                            sendingStringFilledFlag = false;
+                            tcpConnectedFlag = false;
+
+                            Application.Current.Dispatcher.Invoke(DispatcherPriority.Background, new Action(() =>
+                            {
+                                clientTextboxBig.AppendText("Disconnected..." + Environment.NewLine);
+                                clientTextboxBig.ScrollToEnd();
+                            }));
+
+                            clientConnection.Disconnect();
                             closeFlag = true;
                             break;
 
@@ -346,11 +420,12 @@ namespace TCP_Server_Client_Tester
                             clientState = Tcp.CLOSE;
                             break;
                     }
+                    Thread.Sleep(1); //for decreasing the CPU usage
                 }
             }
-            catch
+            catch (Exception Ex)
             {
-                MessageBox.Show("Client loop error. Please restart the Program!", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                MessageBox.Show("PLEASE RESTART! TcpClientLoop-thread error: \n\n" + Ex, "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -443,7 +518,10 @@ namespace TCP_Server_Client_Tester
             if (!sendingStringFilledFlag && tcpConnectedFlag)
             {
                 sendingString = serverSendTextbox1.Text;
-                sendingStringFilledFlag = true;
+                if (sendingString != null && sendingString != "")
+                {
+                    sendingStringFilledFlag = true;
+                }
             }
         }
 
@@ -452,7 +530,10 @@ namespace TCP_Server_Client_Tester
             if (!sendingStringFilledFlag && tcpConnectedFlag)
             {
                 sendingString = serverSendTextbox2.Text;
-                sendingStringFilledFlag = true;
+                if (sendingString != null && sendingString != "")
+                {
+                    sendingStringFilledFlag = true;
+                }
             }
         }
 
@@ -461,7 +542,10 @@ namespace TCP_Server_Client_Tester
             if (!sendingStringFilledFlag && tcpConnectedFlag)
             {
                 sendingString = clientSendTextbox1.Text;
-                sendingStringFilledFlag = true;
+                if (sendingString != null && sendingString != "")
+                {
+                    sendingStringFilledFlag = true;
+                }
             }
         }
 
@@ -470,7 +554,10 @@ namespace TCP_Server_Client_Tester
             if (!sendingStringFilledFlag && tcpConnectedFlag)
             {
                 sendingString = clientSendTextbox2.Text;
-                sendingStringFilledFlag = true;
+                if (sendingString != null && sendingString != "")
+                {
+                    sendingStringFilledFlag = true;
+                }
             }
         }
     }
