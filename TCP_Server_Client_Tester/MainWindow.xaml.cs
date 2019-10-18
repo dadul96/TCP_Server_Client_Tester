@@ -1,4 +1,7 @@
-﻿using System;
+﻿//#################
+//version: 2.0.0
+//#################
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -17,7 +20,7 @@ using System.Windows.Threading;
 using System.Threading;
 using System.Net;
 using System.Net.Sockets;
-using TcpConnection_Lib;
+using TcpConnection_Lib; //lib-version 2.0.0 used
 
 namespace TCP_Server_Client_Tester
 {
