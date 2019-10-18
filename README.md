@@ -15,6 +15,11 @@ There is no installation required. Just download the **TCP_Server_Client_Tester.
 * [WPF](https://docs.microsoft.com/en-us/dotnet/framework/wpf/) - Framework used for creating the GUI
 * [TcpConnection_Lib](https://github.com/dadul96/TcpConnection_Lib) - C# library that contains the TCP connection handling
 
+| **TcpConnection_Lib-versions**                                             	|     	| **TCP_Server_Client_Tester-versions**                                             	|
+|---------------------------------------------------------------------------	|-----	|----------------------------------------------------------------------------------	|
+| [v1.0.0](https://github.com/dadul96/TcpConnection_Lib/releases/tag/v1.0.0) 	| <- 	| [v1.0.0](https://github.com/dadul96/TCP_Server_Client_Tester/releases/tag/v1.0.0) 	|
+| [v2.0.0](https://github.com/dadul96/TcpConnection_Lib/releases/tag/v2.0.0) 	| <- 	| [v2.0.0](https://github.com/dadul96/TCP_Server_Client_Tester/releases/tag/v2.0.0) 	|
+
 ### Author
 **Daniel Duller** - [dadul96](https://github.com/dadul96)
 
